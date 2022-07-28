@@ -6,6 +6,9 @@
 # Log files
 *.log
 
+# PyCharm files
+.idea/*
+
 # GCS specific
 gcs_credentials.json
 
