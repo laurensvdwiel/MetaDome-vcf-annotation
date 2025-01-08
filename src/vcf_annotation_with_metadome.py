@@ -86,7 +86,7 @@ def annotate_metadome(metadome_df_grouped, chromosome, chr_pos):
     chromosomes_in_metadome_df = metadome_df_grouped.groups.keys()
 
     if not chromosome in chromosomes_in_metadome_df:
-        logging.getLogger(LOGGER_NAME).error("The metadome_df provided does not contain data from the chromosome '"+chromosome+"'")
+        logging.getLogger(LOGGER_NAME).debug("The metadome_df provided does not contain data from the chromosome '"+chromosome+"'")
         return return_value
 
     # check for a metadome hit
@@ -269,3 +269,5 @@ if __name__ == '__main__':
 
     # run the main function
     main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel)
+
+    # main(source_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06", target_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19_annotated", metadome_filename = "/oak/stanford/groups/smontgom/lvdwiel/MetaDome/metadome_data_full_n_transcripts_41772_20220508-011127.tsv.gz", parallel = False)
