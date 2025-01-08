@@ -1,13 +1,13 @@
 # MetaDome-vcf-annotation
 
-An implementation to vcf annotations using MetaDome data.
+An implementation to annotate variant call format (vcf) files with MetaDome data.
 
 MetaDome web server is available [here](https://stuart.radboudumc.nl/metadome/)
 MetaDome data is available [here](https://zenodo.org/record/6625251)
 
 ## Citation ##
 
-If you make use of this software for academic purposes, please cite the article [10.1016/j.ajhg.2017.08.004](https://doi.org/10.1016/j.ajhg.2017.08.004).
+If you make use of this software for academic purposes, please cite the MetaDome article [10.1002/humu.23798](https://doi.org/10.1002/humu.23798).
 
 ## How to run ##
 
