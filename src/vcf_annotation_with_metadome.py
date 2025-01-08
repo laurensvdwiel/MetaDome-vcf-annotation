@@ -113,56 +113,69 @@ def annotate_single_chromosome_vcf(chromosome, chunk_filename, metadome_df_group
 
     # Initialize counter
     processed_line_counter = 0
-    # Open the source file
-    with open(chunk_filename, 'r') as source_f, open(os.path.join(target_folder, "MetaDome_annotated_"+os.path.basename(chunk_filename)), 'a') as target_f:
-        # read the first line
-        line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "annotate_chunk_" + chromosome)
 
-        while not end_of_file:
-            if processed_line_counter % report_counter == 0:
-                logging.getLogger(LOGGER_NAME).info("Processed '" + str(processed_line_counter) + "' lines for chromosome '" + chromosome + "'")
+    # create source and target file reader/writer contexts based on the file extension
+    if chunk_filename.endswith(".vcf.gz"):
+        source_f = gzip.open(chunk_filename, 'rt')
+        target_f_name = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(chunk_filename).replace(".vcf.gz", ".vcf"))
+    elif chunk_filename.endswith(".vcf"):
+        source_f = open(chunk_filename, 'r')
+        target_f_name = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(chunk_filename))
+    else:
+        logging.getLogger(LOGGER_NAME).error("File '"+chunk_filename+"' is not a VCF file")
+        return
 
-            # First check if the line is a header line
-            if line.startswith("#"):
-                # check if it is the generic column info header line
-                if line.startswith("#CHROM"):
-                    # add the metadome annotation to the header
-                    if type(line) is bytes:
-                        line_to_write = line.decode('utf-8').strip()
-                    else:
-                        line_to_write = line.strip()
-                    target_f.write("##INFO=<ID=MetaDome,Number=.,Type=String,Description=\"MetaDome domain annotation\">\n")
+    # create the target file
+    target_f = open(target_f_name, 'a')
 
-                    line_to_write += "\t" + 'metadome_metadomain_positions' + "\n"
+    # read the first line
+    line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "annotate_chunk_" + chromosome)
 
-                    # write the line to the target file
-                    target_f.write(line_to_write)
+    while not end_of_file:
+        if processed_line_counter % report_counter == 0:
+            logging.getLogger(LOGGER_NAME).info("Processed '" + str(processed_line_counter) + "' lines for chromosome '" + chromosome + "'")
+
+        # First check if the line is a header line
+        if line.startswith("#"):
+            # check if it is the generic column info header line
+            if line.startswith("#CHROM"):
+                # add the metadome annotation to the header
+                if type(line) is bytes:
+                    line_to_write = line.decode('utf-8').strip()
                 else:
-                    target_f.write(line)
-                line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(
-                    source_f, processed_line_counter, "annotate_chunk_" + chromosome, header)
-                continue
+                    line_to_write = line.strip()
+                target_f.write("##INFO=<ID=MetaDome,Number=.,Type=String,Description=\"MetaDome domain annotation\">\n")
 
-            # Annotate the line with the metadome data
-            processed_line['metadome_metadomain_positions'] = "-"
+                line_to_write += "\t" + 'metadome_metadomain_positions' + "\n"
 
-            if metadome_df_grouped is not None:
-                annotation = annotate_metadome(metadome_df_grouped, processed_line['#CHROM'], processed_line['POS'])
-                if len(annotation) > 0:
-                    processed_line['metadome_metadomain_positions'] = annotation['metadome_metadomain_positions']
-
-            # write the line to the target file
-            if type(line) is bytes:
-                line_to_write = line.decode('utf-8').strip()
+                # write the line to the target file
+                target_f.write(line_to_write)
             else:
-                line_to_write = line.strip()
-            line_to_write += "\t" + processed_line['metadome_metadomain_positions'] + "\n"
+                target_f.write(line)
+            line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(
+                source_f, processed_line_counter, "annotate_chunk_" + chromosome, header)
+            continue
 
-            # write the line to the target file
-            target_f.write(line_to_write)
+        # Annotate the line with the metadome data
+        processed_line['metadome_metadomain_positions'] = "-"
 
-            # read the next line
-            line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "annotate_chunk_" + chromosome, header)
+        if metadome_df_grouped is not None:
+            annotation = annotate_metadome(metadome_df_grouped, processed_line['#CHROM'], processed_line['POS'])
+            if len(annotation) > 0:
+                processed_line['metadome_metadomain_positions'] = annotation['metadome_metadomain_positions']
+
+        # write the line to the target file
+        if type(line) is bytes:
+            line_to_write = line.decode('utf-8').strip()
+        else:
+            line_to_write = line.strip()
+        line_to_write += "\t" + processed_line['metadome_metadomain_positions'] + "\n"
+
+        # write the line to the target file
+        target_f.write(line_to_write)
+
+        # read the next line
+        line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "annotate_chunk_" + chromosome, header)
 
 
 def annotate_the_chromosomes(source_folder, target_folder, metadome_filename, parallel = True, report_counter=10000):
@@ -236,9 +249,6 @@ def main(source_vcf_folder, target_vcf_folder, metadome_filename, parallel):
 if __name__ == '__main__':
     import argparse
 
-    # Initialize the logger
-    initLogging(print_to_console=True, logging_level=logging.INFO)
-
     # Initialize the ArgumentParser
     parser = argparse.ArgumentParser(description=' Running MetaDome annotation on VCF \n Expects a folder with one or more VCF files that contain chr in the filename and the MetaDome annotation file as input')
     # required arguments
@@ -246,9 +256,16 @@ if __name__ == '__main__':
     parser.add_argument('--target_vcf_folder', type=str, required=True, help='(Required) Folder to store the annotated VCF files')
     parser.add_argument('--metadome_filename', type=str, required=True, help='(Required) MetaDome annotation file')
     parser.add_argument('--parallel', type=bool, required=False, default=True, help='(Optional) should the algorithm make use of parallel computation?, default=True')
+    parser.add_argument('--logging_to_console', type=bool, required=False, default=False, help='(Optional) should the algorithm log to the console?, default=False')
 
     # parse the arguments
     args = parser.parse_args()
+
+    if args.logging_to_console:
+        initLogging(logging_level=logging.DEBUG, print_to_console=True)
+    else:
+        # Initialize the logger
+        initLogging(logging_level=logging.INFO)
 
     # run the main function
     main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel)
