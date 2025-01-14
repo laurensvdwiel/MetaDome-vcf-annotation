@@ -251,7 +251,7 @@ def main(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jo
     start_time = time.perf_counter()
 
     # Annotate the multiple VCF files with MetaDome data
-    annotate_metadome_to_vcf_files(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jobs, redo_previous_files)
+    annotate_metadome_to_vcf_files(source_folder=source_vcf_folder, target_folder=target_vcf_folder, metadome_filename=metadome_filename, parallel=parallel, n_jobs=n_jobs, redo_previous_files=redo_previous_files)
 
     time_step = time.perf_counter()
     logging.getLogger(LOGGER_NAME).info("Finished annotation in " + str(time_step - start_time) + " seconds")
