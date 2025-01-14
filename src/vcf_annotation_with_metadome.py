@@ -284,4 +284,4 @@ if __name__ == '__main__':
         logging.getLogger(LOGGER_NAME).warning("The number of jobs to run in parallel is set to '" + str(args.n_jobs) + "' but parallel processing is set to False")
 
     # run the main function
-    main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel, n_jobs=args.n_jobs, redo_previous_files=args.redo_previous)
+    main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel, n_jobs=args.n_jobs, redo_previous_files=args.redo_previous_files)
