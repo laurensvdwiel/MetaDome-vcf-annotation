@@ -210,8 +210,8 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
 
     # Check if the files have already been annotated
     target_files = [x for x in os.listdir(target_folder) if x.startswith("MetaDome_annotated_")]
-    # Count if any of the target files overlap with annotated versions of source file names
-    target_files_overlap = [x for x in target_files if any([re.match("MetaDome_annotated_"+os.path.basename(y), x) for y in source_files])]
+    # Count if any of the target files overlap with annotated versions of source file names, without the gz extension
+    target_files_overlap = [x for x in source_files if "MetaDome_annotated_" + os.path.basename(x).replace(".vcf.gz", ".vcf") in target_files]
     logging.getLogger(LOGGER_NAME).info("Found '"+str(len(target_files))+"' files in the target folder '"+target_folder+"' of which '"+str(len(target_files_overlap))+"' overlap with the source files")
     if redo_previous_files:
         # remove files that have already been annotated
@@ -219,8 +219,8 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
             os.remove(file)
     else:
         # remove the files that have already been annotated from the source files
-        source_files = [x for x in source_files if not any([re.match("MetaDome_annotated_"+os.path.basename(x), y) for y in target_files])]
-        logging.getLogger(LOGGER_NAME).info("Removed '"+str(len(source_files))+"' files from the source files that have already been annotated")
+        source_files = [x for x in source_files if x not in target_files_overlap]
+        logging.getLogger(LOGGER_NAME).info("Removed '"+str(len(target_files_overlap))+"' files from the source files that have already been annotated")
     
     # Read the metadome annotation
     metadome_df = pd.read_csv(metadome_filename, index_col=False)
