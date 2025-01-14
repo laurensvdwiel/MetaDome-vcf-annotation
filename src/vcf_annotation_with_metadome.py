@@ -234,8 +234,16 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
     # Group the metadome data by chromosome
     metadome_df_grouped = metadome_df.groupby('chrom')
 
+    if len(source_files) == 0:
+        logging.getLogger(LOGGER_NAME).info("No files to annotate")
+        return
+    elif len(source_files) == 1:
+        parallel = False
+        logging.getLogger(LOGGER_NAME).info("Only one file to annotate, running in sequential mode")
+
     if parallel:
-        if n_jobs is None:
+        # Check if the number of jobs to run in parallel is set and if there if it is greater or equal to the number of files to be annotated
+        if n_jobs is None or n_jobs > len(source_files):
             n_jobs = len(source_files)
         # Report on the number of jobs to be run
         logging.getLogger(LOGGER_NAME).info("Starting annotation of the VCF files in parallel with '"+str(n_jobs)+"' jobs")
@@ -248,13 +256,17 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
 
 def main(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jobs, redo_previous_files):
     logging.getLogger(LOGGER_NAME).info("Starting annotation")
-    start_time = time.perf_counter()
+    try:
+        start_time = time.perf_counter()
 
-    # Annotate the multiple VCF files with MetaDome data
-    annotate_metadome_to_vcf_files(source_folder=source_vcf_folder, target_folder=target_vcf_folder, metadome_filename=metadome_filename, parallel=parallel, n_jobs=n_jobs, redo_previous_files=redo_previous_files)
+        # Annotate the multiple VCF files with MetaDome data
+        annotate_metadome_to_vcf_files(source_folder=source_vcf_folder, target_folder=target_vcf_folder, metadome_filename=metadome_filename, parallel=parallel, n_jobs=n_jobs, redo_previous_files=redo_previous_files)
 
-    time_step = time.perf_counter()
-    logging.getLogger(LOGGER_NAME).info("Finished annotation in " + str(time_step - start_time) + " seconds")
+        time_step = time.perf_counter()
+        logging.getLogger(LOGGER_NAME).info("Finished annotation in " + str(time_step - start_time) + " seconds")
+    except Exception as e:
+        logging.getLogger(LOGGER_NAME).error("An error occurred during the annotation process: " + str(e) + "\n" + str(e.with_traceback))
+        raise e
 
 if __name__ == '__main__':
     import argparse
