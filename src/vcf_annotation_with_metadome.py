@@ -104,36 +104,36 @@ def annotate_metadome(metadome_df_grouped, chromosome, chr_pos):
     # return the hit
     return return_value
 
-def annotate_single_chromosome_vcf(chromosome, chunk_filename, metadome_df_grouped, target_folder, report_counter):
+def annotate_single_vcf(vcf_filename, metadome_df_grouped, target_folder, report_counter):
     """
-    Annotate a single chromosome VCF file with metadome data
+    Annotate a single VCF file with metadome data
     """
 
-    logging.getLogger(LOGGER_NAME).info("Starting annotation of MetaDome data to '"+chunk_filename+"'")
+    logging.getLogger(LOGGER_NAME).info("Starting annotation of MetaDome data to '" + vcf_filename + "'")
 
     # Initialize counter
     processed_line_counter = 0
 
     # create source and target file reader/writer contexts based on the file extension
-    if chunk_filename.endswith(".vcf.gz"):
-        source_f = gzip.open(chunk_filename, 'rt')
-        target_f_name = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(chunk_filename).replace(".vcf.gz", ".vcf"))
-    elif chunk_filename.endswith(".vcf"):
-        source_f = open(chunk_filename, 'r')
-        target_f_name = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(chunk_filename))
+    if vcf_filename.endswith(".vcf.gz"):
+        source_f = gzip.open(vcf_filename, 'rt')
+        target_f_name = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(vcf_filename).replace(".vcf.gz", ".vcf"))
+    elif vcf_filename.endswith(".vcf"):
+        source_f = open(vcf_filename, 'r')
+        target_f_name = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(vcf_filename))
     else:
-        logging.getLogger(LOGGER_NAME).error("File '"+chunk_filename+"' is not a VCF file")
+        logging.getLogger(LOGGER_NAME).error("File '" + vcf_filename + "' is not a VCF file")
         return
 
     # create the target file
     target_f = open(target_f_name, 'a')
 
     # read the first line
-    line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "annotate_chunk_" + chromosome)
+    line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "Annotating " + os.path.basename(vcf_filename))
 
     while not end_of_file:
         if processed_line_counter % report_counter == 0:
-            logging.getLogger(LOGGER_NAME).info("Processed '" + str(processed_line_counter) + "' lines for chromosome '" + chromosome + "'")
+            logging.getLogger(LOGGER_NAME).info("Processed '" + str(processed_line_counter) + "' lines for file '" + os.path.basename(vcf_filename) + "'")
 
         # First check if the line is a header line
         if line.startswith("#"):
@@ -153,7 +153,7 @@ def annotate_single_chromosome_vcf(chromosome, chunk_filename, metadome_df_group
             else:
                 target_f.write(line)
             line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(
-                source_f, processed_line_counter, "annotate_chunk_" + chromosome, header)
+                source_f, processed_line_counter, "Annotating " + os.path.basename(vcf_filename), header)
             continue
 
         # Annotate the line with the metadome data
@@ -175,13 +175,16 @@ def annotate_single_chromosome_vcf(chromosome, chunk_filename, metadome_df_group
         target_f.write(line_to_write)
 
         # read the next line
-        line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "annotate_chunk_" + chromosome, header)
+        line, processed_line, header, processed_line_counter, end_of_file = read_and_tokenize_vcf_file_line(source_f, processed_line_counter, "Annotating " + os.path.basename(vcf_filename), header)
+
+    target_f.close()
+    logging.getLogger(LOGGER_NAME).info("Finished annotation of MetaDome data for '" + vcf_filename + "' to '" + target_f_name + "'")
 
 
-def annotate_the_chromosomes(source_folder, target_folder, metadome_filename, parallel = True, report_counter=10000):
+def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filename, n_jobs=None, redo_previous_files = False, parallel = True, report_counter=10000):
     """
-
-    # Annotate per chromosome (parallel) [ChrX][GChr38 with ID+hg 19 loc] (domain annotate) >>> [ChrX][GChr38 with ID+hg 19 loc + domain annotation]
+    Annotate MetaDome data to the VCF files in the source folder and store the annotated files in the target folder
+    Schedules the sequential or parallel processing of the files
     """
     # read the source file
     logging.getLogger(LOGGER_NAME).info("Starting annotation of the chunked chromosome files from '"+source_folder+"'")
@@ -189,35 +192,36 @@ def annotate_the_chromosomes(source_folder, target_folder, metadome_filename, pa
     # Create the target folder if it doesn't exist
     if not os.path.exists(target_folder):
         os.makedirs(target_folder)
-    else:
-        # Remove the existing files
-        for file in os.listdir(target_folder):
-            os.remove(os.path.join(target_folder, file))
 
     # Check the files in the source folder
-    source_files = {}
+    source_files = []
     for file in os.listdir(source_folder):
-        if (file.endswith(".vcf") or file.endswith(".vcf.gz")):
-            # retrieve the specific chromosome
-            chromosome = re.search(r'chr\d+', file)
-            if chromosome is None:
-                # if the match is not found, try to match the chromosome with a capital letter
-                chromosome = re.search(r'chr[A-Z]', file)
+        if file.endswith(".vcf") or file.endswith(".vcf.gz"):
+            # add the file to the list of files to annotate
+            source_files.append(os.path.join(source_folder, file))
 
-            if chromosome is not None:
-                chromosome = chromosome.group()
-            else:
-                logging.getLogger(LOGGER_NAME).warning("No chromosome found in file '"+file+"' in source folder '"+source_folder+"'")
-                continue
-
-            # add the file to the dictionary
-            source_files[chromosome] = os.path.join(source_folder, file)
-
-            logging.getLogger(LOGGER_NAME).info("Found chromosome '"+chromosome+"' in '"+source_folder+"' added to the list of files to annotate: '"+source_folder+file+"'")
+            logging.getLogger(LOGGER_NAME).info("Added '"+source_folder+file+"' to the list of files to annotate")
         else:
             logging.getLogger(LOGGER_NAME).warning("Skipping file '"+file+"' in source folder '"+source_folder+"'")
 
+    # report on the number of files to annotate
+    logging.getLogger(LOGGER_NAME).info("Found '"+str(len(source_files))+"' files in the source folder '"+source_folder+"'")
+    logging.getLogger(LOGGER_NAME).info("Checking target folder '"+target_folder+"' for already annotated files...")
 
+    # Check if the files have already been annotated
+    target_files = [x for x in os.listdir(target_folder) if x.startswith("MetaDome_annotated_")]
+    # Count if any of the target files overlap with annotated versions of source file names
+    target_files_overlap = [x for x in target_files if any([re.match("MetaDome_annotated_"+os.path.basename(y), x) for y in source_files])]
+    logging.getLogger(LOGGER_NAME).info("Found '"+str(len(target_files))+"' files in the target folder '"+target_folder+"' of which '"+str(len(target_files_overlap))+"' overlap with the source files")
+    if redo_previous_files:
+        # remove files that have already been annotated
+        for file in target_files_overlap:
+            os.remove(file)
+    else:
+        # remove the files that have already been annotated from the source files
+        source_files = [x for x in source_files if not any([re.match("MetaDome_annotated_"+os.path.basename(x), y) for y in target_files])]
+        logging.getLogger(LOGGER_NAME).info("Removed '"+str(len(source_files))+"' files from the source files that have already been annotated")
+    
     # Read the metadome annotation
     metadome_df = pd.read_csv(metadome_filename, index_col=False)
 
@@ -231,17 +235,23 @@ def annotate_the_chromosomes(source_folder, target_folder, metadome_filename, pa
     metadome_df_grouped = metadome_df.groupby('chrom')
 
     if parallel:
-        _ = Parallel(n_jobs=8)(delayed(annotate_single_chromosome_vcf)(chromosome, source_files[chromosome], metadome_df_grouped, target_folder, report_counter) for chromosome in source_files.keys())
+        if n_jobs is None:
+            n_jobs = len(source_files)
+        # Report on the number of jobs to be run
+        logging.getLogger(LOGGER_NAME).info("Starting annotation of the VCF files in parallel with '"+str(n_jobs)+"' jobs")
+        _ = Parallel(n_jobs=n_jobs)(delayed(annotate_single_vcf)(source_file, metadome_df_grouped, target_folder, report_counter) for source_file in source_files)
     else:
-        for chromosome in source_files.keys():
-            annotate_single_chromosome_vcf(chromosome, source_files[chromosome], metadome_df_grouped, target_folder, report_counter)
+        # Report on the number of jobs to be run
+        logging.getLogger(LOGGER_NAME).info("Starting annotation of the '"+str(len(source_files))+"' VCF files sequentially")
+        for source_file in source_files:
+            annotate_single_vcf(source_file, metadome_df_grouped, target_folder, report_counter)
 
-def main(source_vcf_folder, target_vcf_folder, metadome_filename, parallel):
+def main(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jobs, redo_previous_files):
     logging.getLogger(LOGGER_NAME).info("Starting annotation")
     start_time = time.perf_counter()
 
     # Annotate the multiple VCF files with MetaDome data
-    annotate_the_chromosomes(source_vcf_folder, target_vcf_folder, metadome_filename, parallel)
+    annotate_metadome_to_vcf_files(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jobs, redo_previous_files)
 
     time_step = time.perf_counter()
     logging.getLogger(LOGGER_NAME).info("Finished annotation in " + str(time_step - start_time) + " seconds")
@@ -256,6 +266,8 @@ if __name__ == '__main__':
     parser.add_argument('--target_vcf_folder', type=str, required=True, help='(Required) Folder to store the annotated VCF files')
     parser.add_argument('--metadome_filename', type=str, required=True, help='(Required) MetaDome annotation file')
     parser.add_argument('--parallel', type=bool, required=False, default=True, help='(Optional) should the algorithm make use of parallel computation?, default=True')
+    parser.add_argument('--n_jobs', type=int, required=False, default=None, help='(Optional) number of jobs to run in parallel, default=None')
+    parser.add_argument('--redo_previous_files', type=bool, required=False, default=False, help='(Optional) should the algorithm redo the annotation of files that have already been annotated?, default=False')
     parser.add_argument('--logging_to_console', type=bool, required=False, default=False, help='(Optional) should the algorithm log to the console?, default=False')
 
     # parse the arguments
@@ -267,7 +279,9 @@ if __name__ == '__main__':
         # Initialize the logger
         initLogging(logging_level=logging.INFO)
 
-    # run the main function
-    main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel)
+    # check if the number of jobs to run in parallel is set but parallel processing is not set
+    if args.n_jobs is not None and not args.parallel:
+        logging.getLogger(LOGGER_NAME).warning("The number of jobs to run in parallel is set to '" + str(args.n_jobs) + "' but parallel processing is set to False")
 
-    # main(source_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06", target_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19_annotated", metadome_filename = "/oak/stanford/groups/smontgom/lvdwiel/MetaDome/metadome_data_full_n_transcripts_41772_20220508-011127.tsv.gz", parallel = False)
+    # run the main function
+    main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel, n_jobs=args.n_jobs, redo_previous_files=args.redo_previous)
