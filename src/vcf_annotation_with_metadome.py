@@ -2,7 +2,6 @@ import logging
 import time
 import gzip
 import os
-import re
 import pandas as pd
 from joblib.parallel import Parallel, delayed
 
@@ -97,9 +96,8 @@ def annotate_metadome(metadome_df_grouped, chromosome, chr_pos):
     if len(metadome_hit) > 0:
         # add record
         records = metadome_hit.to_dict('records')
-        return_value['metadome_symbol'] = ";".join(set([x['symbol'] for x in records]))
-        return_value['metadome_metadomain_positions'] = ";".join(
-            set([str(x['domain_id']) + ":" + str(int(x['consensus_pos'])) for x in records]))
+        return_value['metadome_symbol'] = "MetaDome_Symbol="+",".join(set([x['symbol'] for x in records]))
+        return_value['metadome_metadomain_positions'] = "MetaDome_POS="+",".join(set([str(x['domain_id']) + ":" + str(int(x['consensus_pos'])) for x in records]))
 
     # return the hit
     return return_value
@@ -139,15 +137,15 @@ def annotate_single_vcf(vcf_filename, metadome_df_grouped, target_folder, report
         if line.startswith("#"):
             # check if it is the generic column info header line
             if line.startswith("#CHROM"):
-                # add the metadome annotation to the header
+                # Add the metadome annotation to the header
+                target_f.write("##INFO=<ID=MetaDome_POS,Number=.,Type=String,Description=\"MetaDome consensus position in PFAM domain annotation\">\n")
+                target_f.write("##INFO=<ID=MetaDome_Symbol,String=.,Type=String,Description=\"MetaDome Havana gene Symbol where PFAM is present\">\n")
+
+                # Write the header line
                 if type(line) is bytes:
                     line_to_write = line.decode('utf-8').strip()
                 else:
                     line_to_write = line.strip()
-                target_f.write("##INFO=<ID=MetaDome,Number=.,Type=String,Description=\"MetaDome domain annotation\">\n")
-
-                line_to_write += "\t" + 'metadome_metadomain_positions' + "\n"
-
                 # write the line to the target file
                 target_f.write(line_to_write)
             else:
@@ -157,19 +155,19 @@ def annotate_single_vcf(vcf_filename, metadome_df_grouped, target_folder, report
             continue
 
         # Annotate the line with the metadome data
-        processed_line['metadome_metadomain_positions'] = "-"
-
+        metadome_annotation = {}
         if metadome_df_grouped is not None:
-            annotation = annotate_metadome(metadome_df_grouped, processed_line['#CHROM'], processed_line['POS'])
-            if len(annotation) > 0:
-                processed_line['metadome_metadomain_positions'] = annotation['metadome_metadomain_positions']
+            metadome_annotation = annotate_metadome(metadome_df_grouped, processed_line['#CHROM'], processed_line['POS'])
 
-        # write the line to the target file
-        if type(line) is bytes:
+        # Add the metadome annotation to the INFO field
+        if len(metadome_annotation) > 0:
+            processed_line['INFO'] = processed_line['INFO'] + ";" + metadome_annotation['metadome_symbol'] + ";" + metadome_annotation['metadome_metadomain_positions']
+            # Update the line to write to the updated processed_line
+            line_to_write = "\t".join(str(x) for x in processed_line.values()) + "\n"
+        elif type(line) is bytes:
             line_to_write = line.decode('utf-8').strip()
         else:
             line_to_write = line.strip()
-        line_to_write += "\t" + processed_line['metadome_metadomain_positions'] + "\n"
 
         # write the line to the target file
         target_f.write(line_to_write)
@@ -215,13 +213,22 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
     logging.getLogger(LOGGER_NAME).info("Found '"+str(len(target_files))+"' files in the target folder '"+target_folder+"' of which '"+str(len(target_files_overlap))+"' overlap with the source files")
     if redo_previous_files:
         # remove files that have already been annotated
-        for file in target_files_overlap:
-            os.remove(file)
+        for file in target_files:
+            os.remove(os.path.join(target_folder, file))
     else:
         # remove the files that have already been annotated from the source files
+        old_source_files = source_files
         source_files = [x for x in source_files if x not in target_files_overlap]
-        logging.getLogger(LOGGER_NAME).info("Removed '"+str(len(target_files_overlap))+"' files from the source files that have already been annotated")
-    
+        logging.getLogger(LOGGER_NAME).info("Removed '"+str(len(old_source_files)-len(source_files))+"' files from the initial '"+str(len(old_source_files))+"' source files, due to previous annotation")
+
+    # Check if there are any files to annotate
+    if len(source_files) == 0:
+        logging.getLogger(LOGGER_NAME).info("No files to annotate")
+        return
+    elif len(source_files) == 1:
+        parallel = False
+        logging.getLogger(LOGGER_NAME).info("Only one file to annotate, running in sequential mode")
+
     # Read the metadome annotation
     metadome_df = pd.read_csv(metadome_filename, index_col=False)
 
@@ -234,16 +241,10 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
     # Group the metadome data by chromosome
     metadome_df_grouped = metadome_df.groupby('chrom')
 
-    if len(source_files) == 0:
-        logging.getLogger(LOGGER_NAME).info("No files to annotate")
-        return
-    elif len(source_files) == 1:
-        parallel = False
-        logging.getLogger(LOGGER_NAME).info("Only one file to annotate, running in sequential mode")
-
     if parallel:
         # Check if the number of jobs to run in parallel is set and if there if it is greater or equal to the number of files to be annotated
         if n_jobs is None or n_jobs > len(source_files):
+            logging.getLogger(LOGGER_NAME).info("Adjusted the user provided number of jobs to run in parallel from '" + str(n_jobs) + "' to the number of '" + str(len(source_files)) + "' files to annotate")
             n_jobs = len(source_files)
         # Report on the number of jobs to be run
         logging.getLogger(LOGGER_NAME).info("Starting annotation of the VCF files in parallel with '"+str(n_jobs)+"' jobs")
