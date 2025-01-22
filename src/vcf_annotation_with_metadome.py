@@ -286,20 +286,26 @@ def main_single(source_vcf_file, target_folder, metadome_filename, redo_previous
             return
 
         # Check if the target file already exists
-        if redo_previous_file:
-            # bzgipped target file
-            bgziped_target_file = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(source_vcf_file))
-            # non bgzipped target file
-            target_file = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(source_vcf_file).replace(".vcf.gz", ".vcf"))
+        # bzgipped target file
+        bgziped_target_file = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(source_vcf_file))
+        # non bgzipped target file
+        target_file = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(source_vcf_file).replace(".vcf.gz", ".vcf"))
 
-            # check if bgzipped file exists
-            if os.path.exists(bgziped_target_file):
-                logging.getLogger(LOGGER_NAME).info("Removing previous bgzipped target file '"+bgziped_target_file+"'")
-                os.remove(bgziped_target_file)
-            # check if non bgzipped file exists
-            if os.path.exists(target_file):
-                logging.getLogger(LOGGER_NAME).info("Removing previous target file '"+target_file+"'")
-                os.remove(target_file)
+        # check if bgzipped file exists
+        if os.path.exists(bgziped_target_file) or os.path.exists(target_file):
+            if redo_previous_file:
+                if os.path.exists(bgziped_target_file):
+                    logging.getLogger(LOGGER_NAME).info("Removing previous bgzipped target file '"+bgziped_target_file+"'")
+                    os.remove(bgziped_target_file)
+                if os.path.exists(target_file):
+                    logging.getLogger(LOGGER_NAME).info("Removing previous target file '"+target_file+"'")
+                    os.remove(target_file)
+            else:
+                if os.path.exists(bgziped_target_file):
+                    logging.getLogger(LOGGER_NAME).info("The bgzipped target file '"+bgziped_target_file+"' already exists, canceling annotation")
+                if os.path.exists(target_file):
+                    logging.getLogger(LOGGER_NAME).info("The target file '"+target_file+"' already exists, canceling annotation")
+                return
 
         # Read the metadome annotation and group by chromosome
         metadome_df_grouped = group_and_load_metadome_data(metadome_filename)
@@ -309,9 +315,6 @@ def main_single(source_vcf_file, target_folder, metadome_filename, redo_previous
 
         time_step = time.perf_counter()
         logging.getLogger(LOGGER_NAME).info("Finished annotation in " + str(time_step - start_time) + " seconds")
-
-        # Group the metadome data by chromosome
-        metadome_df_grouped = metadome_df.groupby('chrom')
     except Exception as e:
         logging.getLogger(LOGGER_NAME).error("An error occurred during the setup of the annotation process: " + str(e) + "\n" + str(e.with_traceback))
         raise e
