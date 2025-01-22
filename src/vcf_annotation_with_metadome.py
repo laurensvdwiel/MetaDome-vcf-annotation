@@ -337,13 +337,13 @@ if __name__ == '__main__':
     _parser = argparse.ArgumentParser(description=' Running MetaDome annotation on VCF \n Expects a folder with one or more VCF files that contain chr in the filename and the MetaDome annotation file as input')
 
     # required arguments determining single or multi mode and logging
-    parser.add_argument("annotation_mode", nargs='?', type=str, help="The function to run, either 'single' or 'multi'",
+    _parser.add_argument("annotation_mode", nargs='?', type=str, help="The function to run, either 'single' or 'multi'",
                         choices=['single', 'multi'], required=True)
-    parser.add_argument('--logging_to_console', type=bool, required=False, default=False,
+    _parser.add_argument('--logging_to_console', type=bool, required=False, default=False,
                         help='(Optional) should the algorithm log to the console?, default=False')
 
     # choose the single mode
-    _args, _sub_args = parser.parse_known_args()
+    _args, _sub_args = _parser.parse_known_args()
 
     # Initialize the logger
     if _args.logging_to_console:
