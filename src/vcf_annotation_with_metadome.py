@@ -178,6 +178,29 @@ def annotate_single_vcf(vcf_filename, metadome_df_grouped, target_folder, report
     target_f.close()
     logging.getLogger(LOGGER_NAME).info("Finished annotation of MetaDome data for '" + vcf_filename + "' to '" + target_f_name + "'")
 
+def group_and_load_metadome_data(metadome_filename):
+    """
+    Group the metadome data by chromosome and load the data
+    """
+    # Check if the metadome file exists
+    if not os.path.exists(metadome_filename):
+        # exit and report the error
+        logging.getLogger(LOGGER_NAME).error("The metadome file '" + metadome_filename + "' does not exist")
+        raise FileNotFoundError("The metadome file '" + metadome_filename + "' does not exist")
+
+    # Read the metadome annotation
+    metadome_df = pd.read_csv(metadome_filename, index_col=False)
+
+    # Select to only positions that have domain annotation
+    metadome_df = metadome_df[(metadome_df.domain_id == metadome_df.domain_id)]
+
+    # Drop duplicates, if any
+    metadome_df = metadome_df[['chrom', 'pos_start', 'pos_stop', 'strand', 'symbol', 'domain_id', 'consensus_pos']].drop_duplicates()
+
+    # Group the metadome data by chromosome
+    metadome_df_grouped = metadome_df.groupby('chrom')
+
+    return metadome_df_grouped
 
 def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filename, n_jobs=None, redo_previous_files = False, parallel = True, report_counter=10000):
     """
@@ -229,17 +252,8 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
         parallel = False
         logging.getLogger(LOGGER_NAME).info("Only one file to annotate, running in sequential mode")
 
-    # Read the metadome annotation
-    metadome_df = pd.read_csv(metadome_filename, index_col=False)
-
-    # Select to only positions that have domain annotation
-    metadome_df = metadome_df[(metadome_df.domain_id == metadome_df.domain_id)]
-
-    # Drop duplicates, if any
-    metadome_df = metadome_df[['chrom', 'pos_start', 'pos_stop', 'strand', 'symbol', 'domain_id', 'consensus_pos']].drop_duplicates()
-
-    # Group the metadome data by chromosome
-    metadome_df_grouped = metadome_df.groupby('chrom')
+    # Read the metadome annotation and group by chromosome
+    metadome_df_grouped = group_and_load_metadome_data(metadome_filename)
 
     if parallel:
         # Check if the number of jobs to run in parallel is set and if there if it is greater or equal to the number of files to be annotated
@@ -255,7 +269,54 @@ def annotate_metadome_to_vcf_files(source_folder, target_folder, metadome_filena
         for source_file in source_files:
             annotate_single_vcf(source_file, metadome_df_grouped, target_folder, report_counter)
 
-def main(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jobs, redo_previous_files):
+def main_single(source_vcf_file, target_folder, metadome_filename, redo_previous_file, report_counter=10000):
+    logging.getLogger(LOGGER_NAME).info("Starting annotation")
+    try:
+        start_time = time.perf_counter()
+
+        # Check if the source file exists
+        if not os.path.exists(source_vcf_file):
+            logging.getLogger(LOGGER_NAME).error("The source file '"+source_vcf_file+"' does not exist")
+            return
+
+        # Check if the target folder exists
+        if not os.path.exists(target_folder):
+            # exit and report the error
+            logging.getLogger(LOGGER_NAME).error("The target folder '"+target_folder+"' does not exist")
+            return
+
+        # Check if the target file already exists
+        if redo_previous_file:
+            # bzgipped target file
+            bgziped_target_file = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(source_vcf_file))
+            # non bgzipped target file
+            target_file = os.path.join(target_folder, "MetaDome_annotated_" + os.path.basename(source_vcf_file).replace(".vcf.gz", ".vcf"))
+
+            # check if bgzipped file exists
+            if os.path.exists(bgziped_target_file):
+                logger.getLogger(LOGGER_NAME).info("Removing previous bgzipped target file '"+bgziped_target_file+"'")
+                os.remove(bgziped_target_file)
+            # check if non bgzipped file exists
+            if os.path.exists(target_file):
+                logger.getLogger(LOGGER_NAME).info("Removing previous target file '"+target_file+"'")
+                os.remove(target_file)
+
+        # Read the metadome annotation and group by chromosome
+        metadome_df_grouped = group_and_load_metadome_data(metadome_filename)
+
+        # Annotate the single VCF file with MetaDome data
+        annotate_single_vcf(source_vcf_file, metadome_df_grouped, target_folder, report_counter)
+
+        time_step = time.perf_counter()
+        logging.getLogger(LOGGER_NAME).info("Finished annotation in " + str(time_step - start_time) + " seconds")
+
+        # Group the metadome data by chromosome
+        metadome_df_grouped = metadome_df.groupby('chrom')
+    except Exception as e:
+        logging.getLogger(LOGGER_NAME).error("An error occurred during the setup of the annotation process: " + str(e) + "\n" + str(e.with_traceback))
+        raise e
+
+def main_multi(source_vcf_folder, target_vcf_folder, metadome_filename, parallel, n_jobs, redo_previous_files):
     logging.getLogger(LOGGER_NAME).info("Starting annotation")
     try:
         start_time = time.perf_counter()
@@ -273,28 +334,70 @@ if __name__ == '__main__':
     import argparse
 
     # Initialize the ArgumentParser
-    parser = argparse.ArgumentParser(description=' Running MetaDome annotation on VCF \n Expects a folder with one or more VCF files that contain chr in the filename and the MetaDome annotation file as input')
-    # required arguments
-    parser.add_argument('--source_vcf_folder', type=str, required=True, help='(Required) Folder with VCF files to annotate')
-    parser.add_argument('--target_vcf_folder', type=str, required=True, help='(Required) Folder to store the annotated VCF files')
-    parser.add_argument('--metadome_filename', type=str, required=True, help='(Required) MetaDome annotation file')
-    parser.add_argument('--parallel', type=bool, required=False, default=True, help='(Optional) should the algorithm make use of parallel computation?, default=True')
-    parser.add_argument('--n_jobs', type=int, required=False, default=None, help='(Optional) number of jobs to run in parallel, default=None')
-    parser.add_argument('--redo_previous_files', type=bool, required=False, default=False, help='(Optional) should the algorithm redo the annotation of files that have already been annotated?, default=False')
-    parser.add_argument('--logging_to_console', type=bool, required=False, default=False, help='(Optional) should the algorithm log to the console?, default=False')
+    _parser = argparse.ArgumentParser(description=' Running MetaDome annotation on VCF \n Expects a folder with one or more VCF files that contain chr in the filename and the MetaDome annotation file as input')
 
-    # parse the arguments
-    args = parser.parse_args()
+    # required arguments determining single or multi mode and logging
+    parser.add_argument("annotation_mode", nargs='?', type=str, help="The function to run, either 'single' or 'multi'",
+                        choices=['single', 'multi'], required=True)
+    parser.add_argument('--logging_to_console', type=bool, required=False, default=False,
+                        help='(Optional) should the algorithm log to the console?, default=False')
 
-    if args.logging_to_console:
+    # choose the single mode
+    _args, _sub_args = parser.parse_known_args()
+
+    # Initialize the logger
+    if _args.logging_to_console:
         initLogging(logging_level=logging.DEBUG, print_to_console=True)
     else:
-        # Initialize the logger
         initLogging(logging_level=logging.INFO)
 
-    # check if the number of jobs to run in parallel is set but parallel processing is not set
-    if args.n_jobs is not None and not args.parallel:
-        logging.getLogger(LOGGER_NAME).warning("The number of jobs to run in parallel is set to '" + str(args.n_jobs) + "' but parallel processing is set to False")
+    # single mode
+    if _args.annotation_mode == "single":
+        _sub_parser = argparse.ArgumentParser()
 
-    # run the main function
-    main(source_vcf_folder=args.source_vcf_folder, target_vcf_folder=args.target_vcf_folder, metadome_filename=args.metadome_filename, parallel=args.parallel, n_jobs=args.n_jobs, redo_previous_files=args.redo_previous_files)
+        # required arguments
+        _sub_parser.add_argument('--source_vcf_file', type=str, required=True, help='(Required) VCF file to annotate')
+        _sub_parser.add_argument('--target_folder', type=str, required=True, help='(Required) Folder to store the annotated VCF files')
+        _sub_parser.add_argument('--metadome_filename', type=str, required=True, help='(Required) MetaDome annotation file')
+        _sub_parser.add_argument('--redo_previous_file', type=bool, required=False, default=False, help='(Optional) should the algorithm redo the annotation of files that have already been annotated?, default=False')
+
+        # parse the arguments
+        _mode_args = _sub_parser.parse_args(_sub_args)
+
+        # run the main_single function
+        main_single(source_vcf_file=_mode_args.source_vcf_file,
+            target_folder=_mode_args.target_folder,
+            metadome_filename=_mode_args.metadome_filename,
+            redo_previous_file=_mode_args.redo_previous_file)
+
+    # multi mode
+    elif _args.annotation_mode == "multi":
+        _sub_parser = argparse.ArgumentParser()
+
+        # required arguments
+        _sub_parser.add_argument('--source_vcf_folder', type=str, required=True,
+                            help='(Required) Folder with VCF files to annotate')
+        _sub_parser.add_argument('--target_vcf_folder', type=str, required=True,
+                            help='(Required) Folder to store the annotated VCF files')
+        _sub_parser.add_argument('--metadome_filename', type=str, required=True, help='(Required) MetaDome annotation file')
+        _sub_parser.add_argument('--parallel', type=bool, required=False, default=True,
+                            help='(Optional) should the algorithm make use of parallel computation?, default=True')
+        _sub_parser.add_argument('--n_jobs', type=int, required=False, default=None,
+                            help='(Optional) number of jobs to run in parallel, default=None')
+        _sub_parser.add_argument('--redo_previous_files', type=bool, required=False, default=False,
+                            help='(Optional) should the algorithm redo the annotation of files that have already been annotated?, default=False')
+
+        # parse the arguments
+        _mode_args = _sub_parser.parse_args(_sub_args)
+
+        # check if the number of jobs to run in parallel is set but parallel processing is not set
+        if _mode_args.n_jobs is not None and not _mode_args.parallel:
+            logging.getLogger(LOGGER_NAME).warning("The number of jobs to run in parallel is set to '" + str(
+                _mode_args.n_jobs) + "' but parallel processing is set to False")
+
+        # run the main_multi function
+        main_multi(source_vcf_folder=_mode_args.source_vcf_folder, target_vcf_folder=_mode_args.target_vcf_folder,
+             metadome_filename=_mode_args.metadome_filename, parallel=_mode_args.parallel, n_jobs=_mode_args.n_jobs,
+             redo_previous_files=_mode_args.redo_previous_files)
+    else:
+        logging.getLogger(LOGGER_NAME).error("The annotation mode provided is not valid: '"+str(_args.annotation_mode)+"'")
