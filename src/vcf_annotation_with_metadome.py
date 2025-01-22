@@ -401,17 +401,3 @@ if __name__ == '__main__':
              redo_previous_files=_mode_args.redo_previous_files)
     else:
         logging.getLogger(LOGGER_NAME).error("The annotation mode provided is not valid: '"+str(_args.annotation_mode)+"'")
-
-    # test the main function
-    # initLogging(logging_level=logging.DEBUG, print_to_console=True)
-    # # main_multi(source_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19",
-    # #      target_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19_annotated",
-    # #      metadome_filename="/oak/stanford/groups/smontgom/lvdwiel/MetaDome/metadome_data_full_n_transcripts_41772_20220508-011127.tsv.gz",
-    # #      parallel=True, n_jobs=16, redo_previous_files=False)
-    #
-    # main_single(source_vcf_file="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19/hg19.gregor_consortium_u06_sorted_chr1_V2_VRS.vcf.gz",
-    #         target_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19_annotated",
-    #         metadome_filename="/oak/stanford/groups/smontgom/lvdwiel/MetaDome/metadome_data_full_n_transcripts_41772_20220508-011127.tsv.gz",
-    #         redo_previous_file=True)
-    # # # main(source_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19", target_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/data_hg19_annotated", metadome_filename="/oak/stanford/groups/smontgom/lvdwiel/MetaDome/metadome_data_full_n_transcripts_41772_20220508-011127.tsv.gz", parallel=True, n_jobs=10, redo_previous_files=False)
-    # # main(source_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06", target_vcf_folder="/oak/stanford/groups/smontgom/lvdwiel/GREGoR/U06/test_data_hg19_annotated", metadome_filename="/oak/stanford/groups/smontgom/lvdwiel/MetaDome/metadome_data_full_n_transcripts_41772_20220508-011127.tsv.gz", parallel=False, n_jobs=10, redo_previous_files=False)
