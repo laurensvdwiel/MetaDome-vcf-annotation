@@ -338,7 +338,7 @@ if __name__ == '__main__':
 
     # required arguments determining single or multi mode and logging
     _parser.add_argument("annotation_mode", nargs='?', type=str, help="The function to run, either 'single' or 'multi'",
-                        choices=['single', 'multi'], required=True)
+                        choices=['single', 'multi'], default='single')
     _parser.add_argument('--logging_to_console', type=bool, required=False, default=False,
                         help='(Optional) should the algorithm log to the console?, default=False')
 
