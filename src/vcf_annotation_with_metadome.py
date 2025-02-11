@@ -143,9 +143,9 @@ def annotate_single_vcf(vcf_filename, metadome_df_grouped, target_folder, report
 
                 # Write the header line
                 if type(line) is bytes:
-                    line_to_write = line.decode('utf-8').strip()
+                    line_to_write = line.decode('utf-8').strip() + "\n"
                 else:
-                    line_to_write = line.strip()
+                    line_to_write = line.strip() + "\n"
                 # write the line to the target file
                 target_f.write(line_to_write)
             else:
@@ -165,9 +165,9 @@ def annotate_single_vcf(vcf_filename, metadome_df_grouped, target_folder, report
             # Update the line to write to the updated processed_line
             line_to_write = "\t".join(str(x) for x in processed_line.values()) + "\n"
         elif type(line) is bytes:
-            line_to_write = line.decode('utf-8').strip()
+            line_to_write = line.decode('utf-8').strip() + "\n"
         else:
-            line_to_write = line.strip()
+            line_to_write = line.strip() + "\n"
 
         # write the line to the target file
         target_f.write(line_to_write)
